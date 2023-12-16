@@ -1,0 +1,79 @@
+version: "3.7"
+services:
+
+  nginx:
+    build: .manifests/docker/nginx
+    container_name: pulse-nginx
+    restart: always
+    tty: true
+    volumes:
+      - ./.manifests/docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - .:/var/www
+    ports:
+      - "8080:80"
+      - "9001:9001"
+
+    networks:
+      - pulse-backend
+    depends_on:
+      - mysql
+      - php-fpm
+
+  php-fpm:
+    #platform: linux/x86_64
+    #platform: linux/amd64
+    build:
+      context: .manifests/docker/php-fpm
+    container_name: pulse-php-fpm
+    volumes:
+      - ./storage/coverage:/opt/phpstorm-coverage
+      - .:/opt/project
+      - .:/var/www
+      - ./.manifests/docker/php-fpm/confs/docker-xdebug.ini:/usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+      - ./.manifests/docker/php-fpm/confs/elastic-apm.ini:/usr/local/etc/php/conf.d/elastic-apm.ini
+
+    networks:
+      - pulse-backend
+    depends_on:
+      - mysql
+
+  mysql:
+    build: ./.manifests/docker/mysql
+    container_name: pulse-mysql
+    restart: always
+    tty: true
+    working_dir: /application
+    networks:
+      - pulse-backend
+    volumes:
+      - ./.data/mysql:/var/lib/mysql
+      #- ./.manifests/docker/mysql/my.cnf:/etc/my.cnf
+    environment:
+      - MYSQL_DATABASE=pulse
+      - MYSQL_ROOT_PASSWORD=masterroot
+      - MYSQL_USER=pulse
+      - MYSQL_PASSWORD=ahribaba
+    ports:
+      - "4001:3306"
+
+  redis:
+    image: redis:latest
+    container_name: pulse-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - pulse-backend
+
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    container_name: pulse-redisinsight
+    ports:
+      - "8001:8001"
+    networks:
+      - pulse-backend
+    depends_on:
+      - redis
+
+networks:
+  pulse-backend:
+    driver: bridge
